@@ -1,0 +1,118 @@
+# Infra: plan / apply / destroy the Terraform from the Actions tab, so anyone
+# on the team can spin the cluster up or down without local state.
+# Manual only — infrastructure never changes on a plain push.
+name: Infra
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "What to do"
+        type: choice
+        options: [plan, apply, destroy]
+        default: plan
+      confirm:
+        description: "For destroy, type DESTROY"
+        type: string
+        default: ""
+
+# One Terraform run at a time; never cancel one halfway.
+concurrency:
+  group: terraform
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  terraform:
+    name: terraform ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - name: Guard destroy
+        if: inputs.action == 'destroy' && inputs.confirm != 'DESTROY'
+        working-directory: .
+        run: |
+          echo "::error::To destroy, re-run with confirm = DESTROY"
+          exit 1
+
+      - uses: actions/checkout@v6
+
+      - name: Check Terraform code exists
+        working-directory: .
+        run: |
+          if ! ls infra/terraform/*.tf >/dev/null 2>&1; then
+            echo "::error title=No Terraform yet::infra/terraform/ has no .tf files. This workflow runs once the infrastructure code is merged."
+            exit 1
+          fi
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check lab credentials
+        run: |
+          if ! aws sts get-caller-identity >/dev/null 2>&1; then
+            echo "::error title=AWS credentials expired::Start the Learner Lab, then run .github/scripts/refresh-gh-secrets.sh and re-run."
+            exit 1
+          fi
+
+      # State bucket name is unique per lab account.
+      - name: Ensure state bucket exists
+        id: state
+        run: |
+          acct=$(aws sts get-caller-identity --query Account --output text)
+          bucket="kubemonitor-tfstate-$acct"
+          if ! aws s3api head-bucket --bucket "$bucket" 2>/dev/null; then
+            aws s3 mb "s3://$bucket" --region "$AWS_REGION"
+            aws s3api put-bucket-versioning --bucket "$bucket" \
+              --versioning-configuration Status=Enabled
+          fi
+          echo "bucket=$bucket" >> "$GITHUB_OUTPUT"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.10"
+
+      - name: Init
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ steps.state.outputs.bucket }}" \
+            -backend-config="key=kubemonitor/terraform.tfstate" \
+            -backend-config="region=$AWS_REGION" \
+            -backend-config="use_lockfile=true"
+
+      - name: Validate
+        run: terraform validate
+
+      - name: Plan
+        if: inputs.action != 'destroy'
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Apply
+        if: inputs.action == 'apply'
+        run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Destroy
+        if: inputs.action == 'destroy'
+        run: terraform destroy -input=false -auto-approve
+
+      - name: Summary
+        if: success() && inputs.action == 'apply'
+        run: |
+          {
+            echo "### Infrastructure is up"
+            echo '```'
+            terraform output
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
