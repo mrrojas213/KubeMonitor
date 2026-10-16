@@ -73,8 +73,16 @@ jobs:
       - name: Lint
         run: npm run lint --if-present
 
+      # Skips npm's default placeholder ("Error: no test specified"),
+      # so a project without tests yet doesn't fail CI.
       - name: Test
-        run: npm test --if-present
+        run: |
+          t=$(jq -r '.scripts.test // ""' package.json)
+          if [ -z "$t" ] || [[ "$t" == *"no test specified"* ]]; then
+            echo "::notice title=No tests yet (${{ matrix.app.name }})::No real test script in package.json, skipping."
+          else
+            npm test
+          fi
 
       - name: Build
         run: npm run build --if-present
