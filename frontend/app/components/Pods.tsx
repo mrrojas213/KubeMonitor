@@ -3,7 +3,7 @@ import { BiCube } from "react-icons/bi";
 
 const Pods = () => {
   return (
-    <div className="w-[98%] h-[400px] bg-white drop-shadow-sm mt-10 rounded-xl border border-gray-300 py-3 px-7">
+    <div className="w-[98%] h-100 bg-white drop-shadow-sm mt-10 rounded-xl border border-gray-300 py-3 px-7">
       <div className="flex items-center justify-between">
         <h1>Running Pods</h1>
         <div className="flex items-center gap-2 rounded-full px-2 py-1 bg-green-100 text-main w-fit">

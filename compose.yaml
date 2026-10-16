@@ -1,0 +1,22 @@
+Services:
+
+  frontend:
+    image: web-kube-monitor
+    container_name: web-container
+    build:
+      ./frontend
+    ports:
+      - "3000:3000"  
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    image: api-kube-monitor
+    container_name: api-container
+    build:
+      ./backend
+    ports:
+      - "8000:8000"  
+    restart: unless-stopped
+      
