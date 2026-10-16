@@ -26,10 +26,10 @@ import Events from "./components/Events";
 export default function Home() {
   return (
     <div className="flex-center bg-gray-200 h-full ">
-      <div className="w-[900px] h-auto rounded-3xl bg-[#F3F6F8] my-10 border border-gray-300 shadow-lg">
-        <div className=" w-full h-[250px] bg-[#0D1D24] rounded-t-3xl">
+      <div className="w-225 h-auto rounded-3xl bg-[#F3F6F8] my-10 border border-gray-300 shadow-lg">
+        <div className=" w-full h-62.5 bg-[#0D1D24] rounded-t-3xl">
           <div className="flex items-center gap-3 ml-10 mb-5 pt-10">
-            <div className="flex-center w-[40px] h-[40px] rounded-xl bg-white">
+            <div className="flex-center w-10 h-10rounded-xl bg-white">
               <Image
                 src="/logo.png"
                 width={1200}
@@ -76,9 +76,9 @@ export default function Home() {
               <div>
                 <div className="flex items-center gap-5  basis-1/2">
                   <h1>Overview</h1>
-                  <div className="flex items-center gap-2 rounded-full px-2 py-1 bg-amber-200 w-fit">
-                    <div className="w-2 h-2 rounded-full bg-amber-400 "></div>
-                    <p>gvbnmgvbhnjm,kmjnbvc</p>
+                  <div className="flex items-center gap-2 rounded-full px-2 py-1 bg-green-100 w-fit text-main">
+                    <div className="w-2 h-2 rounded-full bg-green-500 "></div>
+                    <p>All Systems are healthy</p>
                   </div>
                 </div>
                 <p>
