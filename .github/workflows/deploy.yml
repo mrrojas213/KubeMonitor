@@ -36,6 +36,7 @@ jobs:
     outputs:
       components: ${{ steps.scan.outputs.components }}
       has_k8s: ${{ steps.scan.outputs.has_k8s }}
+      work: ${{ steps.scan.outputs.work }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -43,6 +44,8 @@ jobs:
 
       # Component folders are listed in .github/components.json.
       - id: scan
+        env:
+          HAS_AWS: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
         run: |
           comps=$(bash .github/scripts/detect-components.sh Dockerfile)
           echo "components=$comps" >> "$GITHUB_OUTPUT"
@@ -52,10 +55,14 @@ jobs:
           else
             echo "has_k8s=false" >> "$GITHUB_OUTPUT"
           fi
-          # Nothing to build or apply yet: skip the AWS checks instead of failing.
+          # Skip (green, with a note) instead of failing when there's nothing
+          # to ship yet or AWS access hasn't been set up yet.
           if [ "$comps" = "[]" ] && ! ls k8s/*.y*ml >/dev/null 2>&1; then
             echo "work=false" >> "$GITHUB_OUTPUT"
             echo "::notice title=Nothing to deploy yet::No Dockerfiles or k8s/ manifests in the repo, so AWS steps were skipped."
+          elif [ "$HAS_AWS" != "true" ]; then
+            echo "work=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=AWS not set up yet::Add the AWS secrets in repo settings to enable deploys. Skipping build, push and deploy."
           else
             echo "work=true" >> "$GITHUB_OUTPUT"
           fi
@@ -88,7 +95,7 @@ jobs:
   build:
     name: Build & push (${{ matrix.component.name }})
     needs: preflight
-    if: needs.preflight.outputs.components != '[]'
+    if: needs.preflight.outputs.work == 'true' && needs.preflight.outputs.components != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
@@ -130,6 +137,7 @@ jobs:
     if: >-
       always() &&
       needs.preflight.result == 'success' &&
+      needs.preflight.outputs.work == 'true' &&
       (needs.build.result == 'success' || needs.build.result == 'skipped') &&
       needs.preflight.outputs.has_k8s == 'true'
     runs-on: ubuntu-latest

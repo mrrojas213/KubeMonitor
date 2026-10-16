@@ -1,4 +1,4 @@
 [
-  { "name": "web", "path": "frontend/dashboard" },
-  { "name": "api", "path": "backend/api" }
+  { "name": "web", "path": "frontend" },
+  { "name": "api", "path": "backend" }
 ]
