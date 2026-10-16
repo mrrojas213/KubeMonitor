@@ -1,0 +1,17 @@
+Services:
+
+  frontend:
+    image: web-kube-monitor
+
+    container_name: web-container
+
+    build:
+      ./frontend
+
+  backend:
+    image: api-kube-monitor
+
+    container_name: api-container
+
+    build:
+      ./backend
