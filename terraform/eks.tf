@@ -59,10 +59,10 @@ resource "aws_eks_node_group" "kube-monitor-workers" {
   node_role_arn   = aws_iam_role.eks_nodes_role.arn
 
   # Deploy nodes into both private subnets
-  subnet_ids =  [
-      aws_subnet.private_sub_1.id,
-      aws_subnet.private_sub_2.id
-    ]
+  subnet_ids = [
+    aws_subnet.private_sub_1.id,
+    aws_subnet.private_sub_2.id
+  ]
 
   # EC2 instance configuration
   instance_types = ["t3.small"]
@@ -80,11 +80,11 @@ resource "aws_eks_node_group" "kube-monitor-workers" {
   }
 
   depends_on = [
-      aws_iam_role_policy_attachment.eks_worker_node_policy,
-      aws_iam_role_policy_attachment.eks_ecr_policy,
-      aws_iam_role_policy_attachment.eks_cni_policy,
-      aws_route_table_association.private_1,
-      aws_route_table_association.private_2
+    aws_iam_role_policy_attachment.eks_worker_node_policy,
+    aws_iam_role_policy_attachment.eks_ecr_policy,
+    aws_iam_role_policy_attachment.eks_cni_policy,
+    aws_route_table_association.private_1,
+    aws_route_table_association.private_2
   ]
 
   tags = {

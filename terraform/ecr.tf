@@ -1,10 +1,8 @@
-# ==========================================
-# 1. FRONTEND ECR REPOSITORY
-# ==========================================
+# Frontend ECR repository
 
 resource "aws_ecr_repository" "web" {
 
-  name = "kube-monitor-web-ecr-repo"
+  name                 = "kube-monitor-web-ecr-repo"
   image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
@@ -14,15 +12,16 @@ resource "aws_ecr_repository" "web" {
   tags = {
     Name = "kube-monitor"
   }
+
+  force_delete = true
 }
 
-# ==========================================
-# 2. BACKEND ECR REPOSITORY
-# ==========================================
+# Backend ECR Repository
+
 
 resource "aws_ecr_repository" "api" {
 
-  name = "kube-monitor-api-ecr-repo"
+  name                 = "kube-monitor-api-ecr-repo"
   image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
@@ -32,6 +31,8 @@ resource "aws_ecr_repository" "api" {
   tags = {
     Name = "kube-monitor-api-ecr-repo"
   }
+  
+  force_delete = true
 }
 
 

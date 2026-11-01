@@ -1,3 +1,14 @@
+# resource "aws_s3_bucket" "kube-monitor-tfstate-bucket" {
+#     bucket = "kube-monitor-tfstate-bucket"
+
+#     tags = {
+#         Name = "kube-monitor-tfstate-bucket"
+#     }
+# }
+
+
+
+
 
 # # ==========================================
 # # 1. CLOUDTRAIL LOGS BUCKET

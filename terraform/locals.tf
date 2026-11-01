@@ -1,3 +1,3 @@
-locals{
-    project = "Kube-monitor"
+locals {
+  project = "Kube-monitor"
 }

@@ -23,25 +23,25 @@ spec:
     spec:
       containers:
         - name: api-container
-          image: api-kube-monitor
+          image: 798319585604.dkr.ecr.us-east-1.amazonaws.com/kube-monitor-api-ecr-repo:v1
           ports:
             - containerPort: 8000
 
-          livenessProbe:
-            httpGet:
-              path: /health/live
-              port: 8000
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            failureThreshold: 3
+          # livenessProbe:
+          #   httpGet:
+          #     path: /health/live
+          #     port: 8000
+          #   initialDelaySeconds: 10
+          #   periodSeconds: 10
+          #   failureThreshold: 3
 
-          readinessProbe:
-            httpGet:
-              path: /health/ready
-              port: 8000
-            initialDelaySeconds: 5
-            periodSeconds: 5
-            failureThreshold: 3
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health/ready
+          #     port: 8000
+          #   initialDelaySeconds: 5
+          #   periodSeconds: 5
+          #   failureThreshold: 3
 
           resources:
             requests:
