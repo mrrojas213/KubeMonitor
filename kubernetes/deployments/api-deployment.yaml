@@ -21,6 +21,7 @@ spec:
         app: api-kube-monitor
         type: backend
     spec:
+      serviceAccountName: kube-monitor-api
       containers:
         - name: api-container
           image: 798319585604.dkr.ecr.us-east-1.amazonaws.com/kube-monitor-api-ecr-repo:v1
