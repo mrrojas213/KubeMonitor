@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+
+kind: Deployment
+
+metadata:
+  name: web-deployment
+  labels:
+    app: web-kube-monitor
+    type: frontend
+
+
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      type: frontend
+  template:
+    metadata:
+      labels:
+        name: web-pod
+        app: web-kube-monitor
+        type: frontend
+    spec:
+      containers:
+        - name: web-container
+          image: 798319585604.dkr.ecr.us-east-1.amazonaws.com/kube-monitor-web-ecr-repo:v1
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+

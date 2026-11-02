@@ -1,7 +1,7 @@
-Services:
+services:
 
   frontend:
-    image: web-kube-monitor
+    image: 798319585604.dkr.ecr.us-east-1.amazonaws.com/kube-monitor-web-ecr-repo:v1
     container_name: web-container
     build:
       ./frontend
@@ -12,7 +12,7 @@ Services:
     restart: unless-stopped
 
   backend:
-    image: api-kube-monitor
+    image: 798319585604.dkr.ecr.us-east-1.amazonaws.com/kube-monitor-api-ecr-repo:v1
     container_name: api-container
     build:
       ./backend
