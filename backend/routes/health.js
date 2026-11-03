@@ -4,15 +4,15 @@ const router = express.Router();
 
 // Define your health routes here
 router.get("/health", (req, res) => {
-  res.send("Health check passed!");
+  res.status(200).json({ status: "healthy" });
 });
 
 router.get("/health/live", (req, res) => {
-  res.send("Liveness check passed!");
+  res.status(200).json({ status: "alive" });
 });
 
 router.get("/health/ready", (req, res) => {
-  res.send("Readiness check passed!");
+  res.status(200).json({ status: "ready" });
 });
 
 

@@ -24,6 +24,7 @@ spec:
       containers:
         - name: web-container
           image: 798319585604.dkr.ecr.us-east-1.amazonaws.com/kube-monitor-web-ecr-repo:v1
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
           resources:
