@@ -183,7 +183,12 @@ aws eks update-kubeconfig \
 
 # Apply Kubernetes manifests to the EKS cluster
   kubectl apply -f kubernetes/
+  kubectl apply -f kubernetes/deployments/
+  kubectl apply -f kubernetes/services/
+  kubectl apply -f kubernetes/autoscaling/
 
+
+  
 
 
 

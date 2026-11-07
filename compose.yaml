@@ -19,4 +19,10 @@ services:
     ports:
       - "8000:8000"  
     restart: unless-stopped
-      
+    environment:
+      AWS_REGION: us-east-1
+      AWS_PROFILE: default
+      KUBECONFIG: /root/.kube/config
+    volumes:
+      - ${HOME}/.kube:/root/.kube:ro
+      - ${HOME}/.aws:/root/.aws:ro
