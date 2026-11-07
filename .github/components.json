@@ -1,4 +1,4 @@
 [
-  { "name": "web", "path": "frontend" },
-  { "name": "api", "path": "backend" }
+  { "name": "web", "path": "frontend", "ecr": "kube-monitor-web-ecr-repo" },
+  { "name": "api", "path": "backend", "ecr": "kube-monitor-api-ecr-repo" }
 ]

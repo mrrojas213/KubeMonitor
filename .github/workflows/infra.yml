@@ -1,5 +1,5 @@
-# Infra: plan / apply / destroy the Terraform from the Actions tab, so anyone
-# on the team can spin the cluster up or down without local state.
+# Infra: plan / apply / destroy the Terraform in terraform/ from the Actions
+# tab, so anyone on the team can turn the AWS setup on or off.
 # Manual only — infrastructure never changes on a plain push.
 name: Infra
 
@@ -26,6 +26,7 @@ permissions:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  CLUSTER_NAME: ${{ vars.CLUSTER_NAME || 'kube-monitor-eks' }}
   TF_IN_AUTOMATION: "true"
 
 jobs:
@@ -34,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: infra/terraform
+        working-directory: terraform
     steps:
       - name: Guard destroy
         if: inputs.action == 'destroy' && inputs.confirm != 'DESTROY'
@@ -48,8 +49,8 @@ jobs:
       - name: Check Terraform code exists
         working-directory: .
         run: |
-          if ! ls infra/terraform/*.tf >/dev/null 2>&1; then
-            echo "::error title=No Terraform yet::infra/terraform/ has no .tf files. This workflow runs once the infrastructure code is merged."
+          if ! ls terraform/*.tf >/dev/null 2>&1; then
+            echo "::error title=No Terraform yet::terraform/ has no .tf files."
             exit 1
           fi
 
@@ -60,37 +61,30 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Check lab credentials
+      - name: Check AWS credentials
         run: |
           if ! aws sts get-caller-identity >/dev/null 2>&1; then
-            echo "::error title=AWS credentials expired::Start the Learner Lab, then run .github/scripts/refresh-gh-secrets.sh and re-run."
+            echo "::error title=AWS credentials not working::Check the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY repo secrets."
             exit 1
           fi
 
-      # State bucket name is unique per lab account.
-      - name: Ensure state bucket exists
-        id: state
+      # terraform/backend.tf names the state bucket. Terraform can't create the
+      # bucket that holds its own state, so it must already exist.
+      - name: Check state bucket exists
         run: |
-          acct=$(aws sts get-caller-identity --query Account --output text)
-          bucket="kubemonitor-tfstate-$acct"
+          bucket=$(sed -n -E 's/^[[:space:]]*bucket[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' backend.tf | head -1)
           if ! aws s3api head-bucket --bucket "$bucket" 2>/dev/null; then
-            aws s3 mb "s3://$bucket" --region "$AWS_REGION"
-            aws s3api put-bucket-versioning --bucket "$bucket" \
-              --versioning-configuration Status=Enabled
+            echo "::error title=State bucket missing::S3 bucket '$bucket' (from terraform/backend.tf) doesn't exist or this account can't reach it. Create it once in the S3 console, in $AWS_REGION."
+            exit 1
           fi
-          echo "bucket=$bucket" >> "$GITHUB_OUTPUT"
+          echo "State bucket: $bucket"
 
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~1.10"
 
       - name: Init
-        run: |
-          terraform init -input=false \
-            -backend-config="bucket=${{ steps.state.outputs.bucket }}" \
-            -backend-config="key=kubemonitor/terraform.tfstate" \
-            -backend-config="region=$AWS_REGION" \
-            -backend-config="use_lockfile=true"
+        run: terraform init -input=false
 
       - name: Validate
         run: terraform validate
@@ -102,6 +96,25 @@ jobs:
       - name: Apply
         if: inputs.action == 'apply'
         run: terraform apply -input=false -auto-approve tfplan
+
+      # The Ingress makes the AWS Load Balancer Controller create an ALB that
+      # Terraform doesn't know about. Left in place, it keeps billing and blocks
+      # the VPC from being deleted, so remove it first and give the controller
+      # time to delete the ALB.
+      - name: Remove Kubernetes load balancers before destroy
+        if: inputs.action == 'destroy'
+        run: |
+          if aws eks describe-cluster --name "$CLUSTER_NAME" >/dev/null 2>&1; then
+            aws eks update-kubeconfig --region "$AWS_REGION" --name "$CLUSTER_NAME"
+            kubectl delete ingress --all --all-namespaces --wait=true --timeout=180s || true
+            for svc in $(kubectl get svc --all-namespaces -o jsonpath='{range .items[?(@.spec.type=="LoadBalancer")]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}'); do
+              kubectl delete svc -n "${svc%%/*}" "${svc##*/}" --wait=true --timeout=180s || true
+            done
+            echo "Waiting 60s for AWS to remove the load balancers..."
+            sleep 60
+          else
+            echo "Cluster $CLUSTER_NAME not found; nothing to clean up."
+          fi
 
       - name: Destroy
         if: inputs.action == 'destroy'

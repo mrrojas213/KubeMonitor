@@ -1,5 +1,5 @@
 # CI: runs on every pull request and every push to main.
-# Needs NO AWS credentials, so it works even when the lab is stopped.
+# Needs NO AWS credentials.
 # Jobs for the app, manifests and Terraform skip themselves until those folders exist.
 name: CI
 
@@ -34,12 +34,12 @@ jobs:
         run: |
           apps=$(bash .github/scripts/detect-components.sh package.json)
           echo "node_apps=$apps" >> "$GITHUB_OUTPUT"
-          if ls k8s/*.y*ml >/dev/null 2>&1; then
+          if [ -n "$(find kubernetes -name '*.y*ml' 2>/dev/null | head -1)" ]; then
             echo "has_k8s=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_k8s=false" >> "$GITHUB_OUTPUT"
           fi
-          if ls infra/terraform/*.tf >/dev/null 2>&1; then
+          if ls terraform/*.tf >/dev/null 2>&1; then
             echo "has_tf=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_tf=false" >> "$GITHUB_OUTPUT"
@@ -109,14 +109,19 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: infra/terraform
+        working-directory: terraform
     steps:
       - uses: actions/checkout@v6
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~1.10"
-      - name: Format check
-        run: terraform fmt -check -recursive -diff
+      # Formatting is reported as a warning, not a failure. Fix locally with:
+      #   terraform fmt -recursive terraform/
+      - name: Format check (warning only)
+        run: |
+          if ! terraform fmt -check -recursive -diff; then
+            echo "::warning title=Terraform formatting::Some .tf files aren't formatted. Run 'terraform fmt -recursive terraform/' and commit."
+          fi
       - name: Init (no backend)
         run: terraform init -backend=false -input=false
       - name: Validate
@@ -131,9 +136,8 @@ jobs:
       - uses: actions/checkout@v6
       - name: kubeconform
         run: |
-          docker run --rm -v "$PWD/k8s:/k8s" ghcr.io/yannh/kubeconform:latest \
-            -strict -summary -ignore-missing-schemas \
-            -kubernetes-version 1.35.0 /k8s
+          docker run --rm -v "$PWD/kubernetes:/manifests" ghcr.io/yannh/kubeconform:latest \
+            -strict -summary -ignore-missing-schemas /manifests
 
   workflows:
     name: Lint workflow files

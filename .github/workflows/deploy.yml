@@ -20,10 +20,10 @@ permissions:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-  CLUSTER_NAME: ${{ vars.CLUSTER_NAME || 'kubemonitor-eks' }}
-  # ECR repos are expected to be named <ECR_PREFIX>-web and <ECR_PREFIX>-api.
-  ECR_PREFIX: ${{ vars.ECR_PREFIX || 'kubemonitor' }}
-  NAMESPACE: kubemonitor
+  # Names match terraform/ (eks.tf, ecr.tf). ECR repo names live in
+  # .github/components.json. Override any of these with repo variables.
+  CLUSTER_NAME: ${{ vars.CLUSTER_NAME || 'kube-monitor-eks' }}
+  NAMESPACE: ${{ vars.K8S_NAMESPACE || 'default' }}
   # The exact commit CI tested (workflow_run) or the current one (manual run).
   SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
@@ -50,16 +50,16 @@ jobs:
           comps=$(bash .github/scripts/detect-components.sh Dockerfile)
           echo "components=$comps" >> "$GITHUB_OUTPUT"
           echo "Deployable components: $comps"
-          if ls k8s/*.y*ml >/dev/null 2>&1; then
+          if [ -n "$(find kubernetes -name '*.y*ml' 2>/dev/null | head -1)" ]; then
             echo "has_k8s=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_k8s=false" >> "$GITHUB_OUTPUT"
           fi
           # Skip (green, with a note) instead of failing when there's nothing
           # to ship yet or AWS access hasn't been set up yet.
-          if [ "$comps" = "[]" ] && ! ls k8s/*.y*ml >/dev/null 2>&1; then
+          if [ "$comps" = "[]" ] && ! [ -n "$(find kubernetes -name '*.y*ml' 2>/dev/null | head -1)" ]; then
             echo "work=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Nothing to deploy yet::No Dockerfiles or k8s/ manifests in the repo, so AWS steps were skipped."
+            echo "::notice title=Nothing to deploy yet::No Dockerfiles or kubernetes/ manifests in the repo, so AWS steps were skipped."
           elif [ "$HAS_AWS" != "true" ]; then
             echo "work=false" >> "$GITHUB_OUTPUT"
             echo "::notice title=AWS not set up yet::Add the AWS secrets in repo settings to enable deploys. Skipping build, push and deploy."
@@ -79,7 +79,7 @@ jobs:
         if: steps.scan.outputs.work == 'true'
         run: |
           if ! aws sts get-caller-identity >/dev/null 2>&1; then
-            echo "::error title=AWS credentials expired::Start the Learner Lab, then run .github/scripts/refresh-gh-secrets.sh and re-run this workflow."
+            echo "::error title=AWS credentials not working::Check the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY repo secrets."
             exit 1
           fi
 
@@ -125,8 +125,8 @@ jobs:
           platforms: linux/amd64 # t3 worker nodes are x86
           push: true
           tags: |
-            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PREFIX }}-${{ matrix.component.name }}:${{ env.SHA }}
-            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PREFIX }}-${{ matrix.component.name }}:latest
+            ${{ steps.ecr.outputs.registry }}/${{ matrix.component.ecr }}:${{ env.SHA }}
+            ${{ steps.ecr.outputs.registry }}/${{ matrix.component.ecr }}:latest
           cache-from: type=gha,scope=${{ matrix.component.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.component.name }}
 
@@ -161,27 +161,25 @@ jobs:
       - name: Connect kubectl to the cluster
         run: aws eks update-kubeconfig --region "$AWS_REGION" --name "$CLUSTER_NAME"
 
-      # Manifests write `image: ${API_IMAGE}` / `image: ${WEB_IMAGE}`;
-      # this fills in the exact images built above. Only those two variables
-      # are substituted, so any other `$` in the YAML is left alone.
+      # The manifests in kubernetes/ name a fixed image tag (e.g. ...-ecr-repo:v1).
+      # This copies them to rendered/ and points every image of a component
+      # built in this run at the exact commit's image. kubernetes/ is unchanged.
       - name: Render manifests
         env:
-          API_IMAGE: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PREFIX }}-api:${{ env.SHA }}
-          WEB_IMAGE: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_PREFIX }}-web:${{ env.SHA }}
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          BUILT: ${{ needs.preflight.outputs.components }}
         run: |
-          command -v envsubst >/dev/null || sudo apt-get install -y -qq gettext-base
-          mkdir -p rendered
-          # SC2016: single quotes are intentional (envsubst's variable list).
-          # SC2094: reads k8s/X, writes rendered/X - different files.
-          # shellcheck disable=SC2016,SC2094
-          for f in k8s/*.y*ml; do
-            envsubst '${API_IMAGE} ${WEB_IMAGE}' < "$f" > "rendered/$(basename "$f")"
+          rm -rf rendered && cp -r kubernetes rendered
+          for repo in $(jq -r '.[] | select(.ecr) | .ecr' <<<"$BUILT"); do
+            new="$REGISTRY/$repo:$SHA"
+            find rendered -name '*.y*ml' -exec \
+              sed -i -E "s#(image:[[:space:]]*)[^[:space:]\"']*/$repo:[^[:space:]\"']*#\1$new#" {} +
+            echo "Deploying $new"
           done
-          echo "Deploying $API_IMAGE"
-          echo "Deploying $WEB_IMAGE"
+          grep -rhn "image:" rendered || true
 
       - name: Apply
-        run: kubectl apply -f rendered/
+        run: kubectl apply -R -f rendered/
 
       - name: Wait for healthy rollout (auto-rollback on failure)
         run: |
