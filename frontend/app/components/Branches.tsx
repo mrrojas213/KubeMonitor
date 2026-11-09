@@ -6,7 +6,7 @@ const Branches = () => {
     <div className="w-[98%] h-75 bg-white drop-shadow-sm mt-10 rounded-xl border border-gray-300 py-3 px-7">
       <div className="flex items-center justify-between">
         <h1>Latest CI/CD run</h1>
-        <div className="flex items-center gap-2 rounded-full px-2 py-1 bg-green-100 text-main w-fit">
+        <div className="flex items-center gap-2 rounded-full px-3 py-1 bg-green-100 text-main w-fit">
           <div className="flex items-center gap-2">
             <MdOutlineCheckCircle />
             <span>Passed</span>
