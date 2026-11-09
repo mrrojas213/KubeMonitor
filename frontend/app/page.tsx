@@ -1,3 +1,6 @@
+"use client";
+import { useState, useEffect } from "react";
+
 import Image from "next/image";
 import { MdOutlineDashboard } from "react-icons/md";
 import { LiaCubesSolid } from "react-icons/lia";
@@ -7,7 +10,7 @@ import { IoRocketOutline } from "react-icons/io5";
 import { FaRegFileLines } from "react-icons/fa6";
 import { BsCpu } from "react-icons/bs";
 import { RiFlashlightLine } from "react-icons/ri";
-
+import { MdOutlineCancel } from "react-icons/md";
 import { LuShieldCheck } from "react-icons/lu";
 import { LuShieldAlert } from "react-icons/lu";
 
@@ -23,122 +26,343 @@ import Pods from "./components/Pods";
 import Branches from "./components/Branches";
 import Events from "./components/Events";
 
+const formatPercent = (value: number) => `${value.toFixed(1)}%`;
+
 export default function Home() {
+  const [data, setData] = useState<any>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [simulating, setSimulating] = useState(false);
+
+  const allHealthy = data?.allHealthy ?? false;
+  const nodes = data?.nodes ?? null;
+  const pods = data?.pods ?? null;
+  const nodeCPU = data?.nodeCPU ?? 0;
+const networkReceived = data?.cloudwatch?.networkReceived?.value;
+const networkTransmitted = data?.cloudwatch?.networkTransmitted?.value;
+  const networkMB =
+    networkReceived != null && networkTransmitted != null
+      ? (networkReceived + networkTransmitted) / (1024 * 1024)
+      : null;
+
+  const networkTraffic =
+    networkMB === null ? "N/A" : `${networkMB.toFixed(2)} MB`;
+  const deploymentHealthy = data?.deploymentHealthy ?? false;
+  const desiredReplicas = data?.desiredReplicas ?? 0;
+  const readyReplicas = data?.readyReplicas ?? 0;
+  const availableReplicas = data?.availableReplicas ?? 0;
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch("/api/dashboard", {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to retrieve data: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        setData(result);
+        setError("");
+      } catch (error) {
+        setError(error instanceof Error ? error.message : String(error));
+      }
+    };
+
+    fetchData();
+
+    const interval = setInterval(fetchData, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  console.log(data);
+
+  const simulateCPU = async () => {
+    setSimulating(true);
+
+    try {
+      const response = await fetch("/api/simulations/cpu-spike", {
+        method: "POST",
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || result.message);
+      }
+
+      console.log(result.message);
+    } catch (error) {
+      console.error("CPU simulation failed:", error);
+    } finally {
+      setSimulating(false);
+    }
+  };
+
+  const [crashing, setCrashing] = useState(false);
+
+  const simulatePodCrash = async () => {
+    setCrashing(true);
+
+    try {
+      const response = await fetch("/api/simulations/pod-crash", {
+        method: "POST",
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to simulate Pod crash");
+      }
+
+      console.log(result.message);
+      console.log("Deleted Pod:", result.deletedPod);
+    } catch (error) {
+      console.error("Pod crash simulation failed:", error);
+    } finally {
+      setCrashing(false);
+    }
+  };
+
+  const getMetricStatus = (
+    value: number | null | undefined,
+    warning: number,
+    danger: number,
+  ): "green" | "yellow" | "red" | "gray" => {
+    if (value == null || !Number.isFinite(value)) return "gray";
+
+    if (value >= danger) return "red";
+    if (value >= warning) return "yellow";
+
+    return "green";
+  };
+
   return (
-    <div className="flex-center bg-gray-200 h-full ">
+    <div className="flex-center bg-gray-200 h-full">
       <div className="w-225 h-auto rounded-3xl bg-[#F3F6F8] my-10 border border-gray-300 shadow-lg">
-        <div className=" w-full h-62.5 bg-[#0D1D24] rounded-t-3xl">
+        {/* HEADER */}
+        <div className="w-full h-62.5 bg-[#0D1D24] rounded-t-3xl">
           <div className="flex items-center gap-3 ml-10 mb-5 pt-10">
-            <div className="flex-center w-10 h-10rounded-xl bg-white">
+            <div className="flex-center w-10 h-10 rounded-xl bg-white">
               <Image
                 src="/logo.png"
                 width={1200}
                 height={1200}
                 alt="logo"
-                className="w-[90%] h-[90%] drop-shadow-3xl"
+                className="w-[90%] h-[90%]"
               />
             </div>
+
             <span className="text-indigo-50 text-xl font-medium">
               KubeMonitor
             </span>
           </div>
-          <div className="flex flex-wrap gap-2 ml-10 ">
-            <a href="" className="flex items-center gap-2">
+
+          {/* NAVIGATION */}
+          <div className="flex flex-wrap gap-2 ml-10">
+            <a href="#overview" className="flex items-center gap-2">
               <MdOutlineDashboard />
               <span>Overview</span>
             </a>
-             <a href="" className="flex items-center gap-2">
+
+            <a href="#monitoring" className="flex items-center gap-2">
               <MdOutlineMonitorHeart />
               <span>Monitoring</span>
             </a>
-            <a href="" className="flex items-center gap-2">
+
+            <a href="#pods" className="flex items-center gap-2">
               <LiaCubesSolid />
               <span>Pods</span>
             </a>
-            <a href="" className="flex items-center gap-2">
+
+            <a href="#cicd" className="flex items-center gap-2">
               <FaCodeBranch />
               <span>CI/CD</span>
             </a>
-            <a href="" className="flex items-center gap-2">
+
+            <a href="#deployments" className="flex items-center gap-2">
               <IoRocketOutline />
               <span>Deployments</span>
             </a>
-            <a href="" className="flex items-center gap-2">
+
+            <a href="#events" className="flex items-center gap-2">
               <FaRegFileLines />
               <span>Events</span>
             </a>
           </div>
         </div>
 
+        {/* MAIN DASHBOARD */}
         <div className="w-[90%] m-auto py-10">
-          <div className="">
+          <div id="overview">
+            {/* OVERVIEW HEADER */}
             <div className="flex items-center gap-5">
               <div>
-                <div className="flex items-center gap-5  basis-1/2">
+                <div className="flex items-center gap-5 basis-1/2">
                   <h1>Overview</h1>
-                  <div className="flex items-center gap-2 rounded-full px-2 py-1 bg-green-100 w-fit text-main">
-                    <div className="w-2 h-2 rounded-full bg-green-500 "></div>
-                    <p>All Systems are healthy</p>
-                  </div>
+
+                  {loading && !data ? (
+                    <div className="rounded-full px-3 py-1 bg-gray-200">
+                      Loading...
+                    </div>
+                  ) : (
+                    <div
+                      className={`flex items-center gap-2 rounded-full px-2 py-1 w-fit ${
+                        allHealthy
+                          ? "bg-green-100 text-green-700"
+                          : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          allHealthy ? "bg-green-500" : "bg-red-500"
+                        }`}
+                      />
+
+                      <p>
+                        {error
+                          ? "Monitoring data unavailable"
+                          : allHealthy
+                            ? "All Systems are healthy"
+                            : "System needs attention"}
+                      </p>
+                    </div>
+                  )}
                 </div>
+
                 <p>
                   Live health and deployment status for your EKS application.
                 </p>
               </div>
-              <div className="flex basis-1/2 gap-4 ">
-                <button className="text-[18px] flex items-center gap-2 w-fit text-white font-medium cursor-pointer bg-main transition-all duration-300 ease-in-out hover:bg-secondary py-3 px-3 rounded-xl drop-shadow-lg">
+
+              {/* SIMULATION BUTTONS */}
+              <div className="flex basis-1/2 gap-4">
+                <button
+                  onClick={simulateCPU}
+                  disabled={simulating}
+                  className="text-[18px] flex items-center gap-2 w-fit text-white font-medium cursor-pointer 
+                  bg-main transition-all duration-300 ease-in-out hover:bg-secondary py-3 px-3 rounded-xl 
+                  drop-shadow-lg disabled:opacity-50"
+                >
                   <BsCpu />
-                  <span>CPU Spike</span>
+                  <span>{simulating ? "Starting..." : "CPU Spike"}</span>
                 </button>
-                <button className="text-[18px] flex items-center gap-2 w-fit text-white font-medium cursor-pointer bg-main transition-all duration-300 ease-in-out hover:bg-secondary py-3 px-3 rounded-xl drop-shadow-lg">
+
+                <button
+                  onClick={simulatePodCrash}
+                  disabled={crashing}
+                  className="text-[18px] flex items-center gap-2 w-fit text-white font-medium cursor-pointer 
+                  bg-main transition-all duration-300 ease-in-out hover:bg-secondary py-3 px-3 rounded-xl 
+                  drop-shadow-lg disabled:opacity-50"
+                >
                   <RiFlashlightLine />
-                  <span>Pod crashes</span>
+                  <span>{crashing ? "Triggering..." : "Pod Crashes"}</span>
                 </button>
               </div>
             </div>
 
+            {/* API ERROR */}
+            {error && (
+              <p role="alert" className="mt-5 text-red-600 text-sm">
+                API Error: {error}
+              </p>
+            )}
+
+            {/* OVERVIEW CARDS */}
+
+            {/* OVERVIEW CARDS */}
             <div className="flex flex-wrap items-center gap-5 mt-10">
+              {/* Cluster Health */}
               <OverviewCard
                 title="Cluster Health"
-                icon={<LuShieldCheck />}
-                result="Healthy"
-                description="EKS control plane available"
+                icon={allHealthy ? <LuShieldCheck /> : <LuShieldAlert />}
+                result={!data ? "N/A" : allHealthy ? "Healthy" : "Degraded"}
+                description="Nodes, deployments and alarms"
+                status={!data ? "gray" : allHealthy ? "green" : "red"}
               />
+
+              {/* Worker Nodes */}
               <OverviewCard
                 title="Worker Nodes"
                 icon={<TbServer />}
-                result="2 / 2"
+                result={nodes ? `${nodes.ready} / ${nodes.total}` : "N/A"}
                 description="Nodes ready"
+                status="blue"
               />
+
+              {/* Running Pods */}
               <OverviewCard
                 title="Running Pods"
                 icon={<BiCube />}
-                result="4 / 4"
-                description="Desired replicas available"
+                result={data ? `${readyReplicas} / ${desiredReplicas}` : "N/A"}
+                description={
+                  pods
+                    ? `${pods.running} running phase, ${pods.restarts} restarts`
+                    : "Desired replicas ready"
+                }
+                status="blue"
               />
+
+              {/* CPU Usage */}
               <OverviewCard
-                title="CPU usage"
+                title="CPU Usage"
                 icon={<BsCpu />}
-                result="42%"
-                description="Across Express.js Pods"
+                result={formatPercent(nodeCPU)}
+                description="EKS worker node CPU"
+                status={getMetricStatus(nodeCPU?.value, 60, 80)}
               />
+
+              {/* Network Traffic */}
               <OverviewCard
-                title="Network traffic"
+                title="Network Traffic"
                 icon={<RiNetworkLine />}
-                result="12.4"
-                description="MB/s inbound + outbound"
+                result={networkTraffic}
+                description="Inbound + outbound metric total"
+                status={getMetricStatus(networkMB, 5, 20)}
               />
+
+              {/* Deployment Health */}
               <OverviewCard
-                title="Latest deployment"
-                icon={<MdOutlineCheckCircle />}
-                result="Successful"
-                description="8 minutes ago"
+                title="Deployment Health"
+                icon={
+                  deploymentHealthy ? (
+                    <MdOutlineCheckCircle />
+                  ) : (
+                    <MdOutlineCancel />
+                  )
+                }
+                result={
+                  !data ? "N/A" : deploymentHealthy ? "Ready" : "Not Ready"
+                }
+                description={
+                  data
+                    ? `${availableReplicas} / ${desiredReplicas} replicas available`
+                    : "Waiting for deployment data"
+                }
+                status={!data ? "gray" : deploymentHealthy ? "green" : "red"}
               />
             </div>
-            <Monitor />
-            <Pods/>
-            <Branches/>
-            <Events/>
+
+            {/* EXISTING DASHBOARD COMPONENTS */}
+            <div id="monitoring">
+              <Monitor />
+            </div>
+
+            <div id="pods">
+              <Pods pods={data?.kubernetes?.pods?.details ?? []} />
+            </div>
+
+            <div id="cicd">
+              <Branches />
+            </div>
+
+            <div id="events">
+              <Events />
+            </div>
           </div>
         </div>
       </div>
