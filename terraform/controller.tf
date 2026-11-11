@@ -112,3 +112,51 @@ resource "helm_release" "alb_controller" {
     aws_eks_node_group.kube-monitor-workers
   ]
 }
+
+resource "aws_iam_role" "api_logs_role" {
+  name = "kube-monitor-api-logs-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "pods.eks.amazonaws.com"
+      }
+      Action = [
+        "sts:AssumeRole",
+        "sts:TagSession"
+      ]
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "api_logs_policy" {
+  name = "kube-monitor-api-logs-read"
+  role = aws_iam_role.api_logs_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "logs:FilterLogEvents"
+      ]
+      Resource = aws_cloudwatch_log_group.eks_audit.arn
+    }]
+  })
+}
+
+resource "aws_eks_addon" "pod_identity_agent" {
+  cluster_name = aws_eks_cluster.kube-monitor-eks.name
+  addon_name   = "eks-pod-identity-agent"
+}
+
+resource "aws_eks_pod_identity_association" "api_logs" {
+  cluster_name    = aws_eks_cluster.kube-monitor-eks.name
+  namespace       = "default"
+  service_account = "kube-monitor-api"
+  role_arn        = aws_iam_role.api_logs_role.arn
+
+  depends_on = [aws_eks_addon.pod_identity_agent]
+}

@@ -50,7 +50,7 @@ const OverviewCard = ({
 
   return (
     <div
-      className={`border p-3 w-[250px] h-[130px] rounded-xl
+      className={`border p-3 w-[380px] h-[150px] rounded-xl
         drop-shadow-sm transition-colors duration-300 ${color.card}`}
     >
       <div className="flex items-center justify-between">

@@ -15,10 +15,13 @@ resource "aws_eks_cluster" "kube-monitor-eks" {
   }
 
   version = "1.37"
-  # Wait for IAM policy attachment
+  # Wait for IAM policy attachment and CloudWatch log group
   depends_on = [
-    aws_iam_role_policy_attachment.eks_cluster_policy
+    aws_iam_role_policy_attachment.eks_cluster_policy,
+    aws_cloudwatch_log_group.eks_audit
   ]
+
+  enabled_cluster_log_types = ["audit"]
 
   tags = {
     Name = "kube-monitor-eks"

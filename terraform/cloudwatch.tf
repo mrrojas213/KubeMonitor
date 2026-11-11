@@ -29,7 +29,7 @@ resource "aws_iam_role_policy_attachment" "cloudwatch_agent_policy" {
 
 resource "aws_cloudwatch_metric_alarm" "high_cpu" {
   alarm_name        = "kube-monitor-high-node-cpu"
-  alarm_description = "EKS worker node CPU utilization exceeds 80%"
+  alarm_description = "EKS worker node CPU utilization exceeds 50%"
 
   namespace   = "ContainerInsights"
   metric_name = "node_cpu_utilization"
@@ -41,7 +41,7 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu" {
   statistic           = "Maximum"
   period              = 60
   evaluation_periods  = 5
-  threshold           = 70
+  threshold           = 50
   comparison_operator = "GreaterThanThreshold"
 
   treat_missing_data = "missing"
@@ -84,3 +84,12 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_pods" {
   ]
 }
 
+resource "aws_cloudwatch_log_group" "eks_audit" {
+  name              = "/aws/eks/kube-monitor-eks/cluster"
+  retention_in_days = 7
+
+  tags = {
+    Name    = "kube-monitor-eks-logs"
+    Project = "Kube-monitor"
+  }
+}
